@@ -24,5 +24,12 @@ theorem(renamed_is_a_hit) :- forall(rewrite(R), ( empty(C0), cached(C0, R, _, C1
 theorem(counterexamples_are_real) :-
     forall(( rewrite(R), prove(R, fails_at(Bs)) ), ( copy_term(R, L = Rhs), term_variables(L = Rhs, Vs), maplist([V, _ = V]>>true, Vs, Bs), L =\= Rhs )).
 
-% 5. holds means it holds on the whole checked range.
-theorem(holds_means_holds) :- forall(( rewrite(R), prove(R, holds) ), ( copy_term(R, L = Rhs), term_variables(L = Rhs, Vs), forall(maplist([V]>>between(-6, 6, V), Vs), L =:= Rhs) )).
+% 5. holds means it holds on the whole checked range, and is given only for polynomials of degree up to 12.
+theorem(holds_means_holds) :- forall(( rewrite(R), prove(R, holds) ), ( copy_term(R, L = Rhs), term_variables(L = Rhs, Vs), forall(maplist([V]>>between(-6, 6, V), Vs), L =:= Rhs),
+    degree(L, D1), degree(Rhs, D2), max(D1, D2) =< 12 )).
+
+% 6. Agreement on the range alone is not called a proof: a product that is zero on -6..6 and nowhere else gets
+%    holds_on(-6, 6), and a non-polynomial rewrite never gets holds.
+theorem(bounded_agreement_is_said) :-
+    prove(X*(X-1)*(X-2)*(X-3)*(X-4)*(X-5)*(X-6)*(X+1)*(X+2)*(X+3)*(X+4)*(X+5)*(X+6) = 0, holds_on(-6, 6)),
+    prove(abs(Y) = abs(-Y), holds_on(-6, 6)), prove(Z * 2 = Z + Z, holds).
