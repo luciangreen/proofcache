@@ -1,12 +1,12 @@
 % proofcache: a shared cache of proven rewrites, so a rewrite proven once is reused everywhere.
 % A rewrite is Lhs = Rhs over arithmetic in variables; it is checked on every assignment of
-% its variables to -6..6 (a bounded proof), and the result is stored under the rewrite's
+% its variables to -6..6 (a proof for polynomials of degree up to 12, and reported as holds_on(-6, 6) otherwise), and the result is stored under the rewrite's
 % canonical form, so x*2 = x+x and y*2 = y+y share one entry. The cache is a value, passed
 % in and out, so it can be saved as a file and shared between repos.
 %?- prove(X * 2 = X + X, R).                                   % R = holds
-%?- prove(X * X = X + X, R).                                   % R = fails_at([X = 3]) style counterexample
+%?- prove(X * X = X + X, R).                                   % R = fails_at([x(1) = -6]): the first value tried
 %?- empty(C0), cached(C0, A * 2 = A + A, R1, C1, H1), cached(C1, B * 2 = B + B, R2, _, H2).  % H1 = miss, H2 = hit
-:- module(proofcache, [key/2, prove/2, empty/1, cached/5, size/2, cached_all/4]).
+:- module(proofcache, [key/2, prove/2, degree/2, empty/1, cached/5, size/2, cached_all/4]).
 :- use_module(library(lists)).
 :- use_module(library(apply)).
 :- use_module(library(assoc)).
@@ -14,9 +14,21 @@
 key(R, K) :- copy_term(R, K0), numbervars(K0, 0, _), format(string(S), "~q", [K0]), K = S.
 
 % prove(+Rewrite, -Result): holds, or fails_at(Bindings) for the first assignment that breaks it.
+% holds is a proof when both sides are polynomials of total degree at most 12: their difference then has
+% degree at most 12 in each variable, and a nonzero such polynomial cannot vanish on all 13 values -6..6 of
+% each variable. Otherwise agreement on the range is reported as holds_on(-6, 6), not as a proof (the
+% product of X - K for K in -6..6 is zero on the whole range and nowhere else).
 prove(R, Res) :- copy_term(R, Lhs = Rhs), term_variables(Lhs = Rhs, Vs),
     (   assign(Vs), catch(\+ (Lhs =:= Rhs), _, true) -> pairs_of(Vs, Bs), Res = fails_at(Bs)
-    ;   Res = holds ).
+    ;   degree(Lhs, D1), degree(Rhs, D2), max(D1, D2) =< 12 -> Res = holds
+    ;   Res = holds_on(-6, 6) ).
+% degree(+Expr, -D): total degree of a polynomial in +, -, * over numbers and variables; fails otherwise.
+degree(X, 1) :- var(X), !.
+degree(X, 0) :- integer(X), !.
+degree(A + B, D) :- !, degree(A, Da), degree(B, Db), D is max(Da, Db).
+degree(A - B, D) :- !, degree(A, Da), degree(B, Db), D is max(Da, Db).
+degree(-A, D) :- !, degree(A, D).
+degree(A * B, D) :- degree(A, Da), degree(B, Db), D is Da + Db.
 assign(Vs) :- maplist([V]>>between(-6, 6, V), Vs).
 pairs_of(Vs, Bs) :- length(Vs, N), numlist(1, N, Is), maplist([I, V, x(I) = V]>>true, Is, Vs, Bs).
 
